@@ -6,43 +6,6 @@
 
 import urllib.request, socket
 
-class httpdns(object):
-
-    def __init__(self, ednsip, ttl=300):
-        self.domain=''
-        self.ednsip=ednsip
-        self.ANCOUNT=0
-        self.TTL=(ttl).to_bytes(4, byteorder='big')
-        self.answer=b''
-
-    def labelsTOdomain(self, domain):
-    # b'\x03www\x06google\x03com\x00' -> 'www.google.com'
-        i=0
-        r=[]
-        for x in domain:
-            if i == 0:
-                i=x
-                x=46 #ord('.') -> 46
-            else:
-                i=i-1
-            r.append(x)
-        return bytes(r)[1:-1].decode('ASCII')
-
-    def httprequest(self, Qdata):
-        self.domain=self.labelsTOdomain(Qdata[:-4])
-        try:
-            Rdata_tmp=urllib.request.urlopen('http://119.29.29.29/d?dn=%s&ip=%s' % (self.domain,self.ednsip)).read().split(b';')
-            # 119.29.29.29, 119.28.28.28, 182.254.116.116, 182.254.118.118
-        except OSError:
-            print('httprequest error')
-            return 0, Qdata, b''
-        try:
-            Rdata=[bytes([int(y) for y in x.split(b'.')]) for x in Rdata_tmp]
-        except ValueError:
-            print('non answer')
-            return 0, Qdata, b''
-        return len(Rdata), b''.join([b'\xc0\x0c\x00\x01\x00\x01',self.TTL, b'\x00\x04']).join([Qdata, *Rdata]), Rdata_tmp
-
 class iptool(object): #prefixmatch
 
     def __init__(self):
@@ -191,6 +154,46 @@ class iptool(object): #prefixmatch
                 tmp.append(x)
         return {}.fromkeys(tmp)
 
+class httpdns(object):
+
+    def __init__(self, ednsip, ttl=300):
+        self.domain=''
+        self.ednsip=ednsip
+        self.ANCOUNT=0
+        self.TTL=(ttl).to_bytes(4, byteorder='big')
+        self.answer=b''
+
+    def labelsTOdomain(self, domain):
+    # b'\x03www\x06google\x03com\x00' -> 'www.google.com'
+        i=0
+        r=[]
+        for x in domain:
+            if i == 0:
+                i=x
+                x=46 #ord('.') -> 46
+            else:
+                i=i-1
+            r.append(x)
+        return bytes(r)[1:-1].decode('ASCII')
+
+    def httprequest(self, Qdata):
+        self.domain=self.labelsTOdomain(Qdata[:-4])
+        try:
+            Rdata_tmp=urllib.request.urlopen('http://119.29.29.29/d?dn=%s&ip=%s' % (self.domain,self.ednsip)).read().split(b';')
+            # 119.29.29.29, 119.28.28.28, 182.254.116.116, 182.254.118.118
+        except OSError:
+            print('httprequest error')
+            return 0, Qdata, b''
+        try:
+            Rdata=[bytes([int(y) for y in x.split(b'.')]) for x in Rdata_tmp]
+        except ValueError:
+            print('non answer')
+            return 0, Qdata, b''
+        print('httpdns:')
+        print(len(Rdata), b''.join([b'\xc0\x0c\x00\x01\x00\x01',self.TTL, b'\x00\x04']).join([Qdata, *Rdata]), Rdata_tmp)
+        return len(Rdata), b''.join([b'\xc0\x0c\x00\x01\x00\x01',self.TTL, b'\x00\x04']).join([Qdata, *Rdata]), Rdata_tmp
+
+
 class udpdnsserver(object):
     
     def __init__(self, addr='127.0.0.1', port=53):
@@ -204,10 +207,11 @@ class udpdnsserver(object):
         data, self.addr=self.udpfd.recvfrom(1500)
         self.flages=int(data[2:4].hex(), 16)
         self.QID=data[0:2]
+        print('udpdnsserver:\naddr: ip:'+str(self.addr[0])+' port:'+str(self.addr[1])+'\ndata='+str(data)+'\nflag='+str(self.flages)+'\nQID='+str(self.QID))
         Rcode=0
-        if self.flages&0x7800:
+        if self.flages&0x7800:#0x7800=30720
             Rcode=4
-        elif self.flages&0x8000 != 0:
+        elif self.flages&0x8000 != 0:#0x8000=32768
             Rcode=1
         elif data[4:6] == b'\x00\x01':
             i=0
@@ -223,6 +227,7 @@ class udpdnsserver(object):
             qdata=data[12:]
         else:
             qdata=data[12:i+16]
+        print('Rcode='+str(Rcode)+'\nqdata='+str(qdata))
         return Rcode, qdata
     
     def output(self, Rcode, Rdata, ANCOUNT=0):
@@ -233,18 +238,23 @@ class udpdnsserver(object):
         Rcount=b''.join([b'\x00\x01', ANCOUNT.to_bytes(2, byteorder='big'), b'\x00\x00\x00\x00'])
         Rdata=b''.join([self.QID, self.flages.to_bytes(2, byteorder='big'), Rcount, Rdata])
         self.udpfd.sendto(Rdata, self.addr)
+        print(Rdata,self.addr)
+        print('##################output success\n')
 
 if __name__ == '__main__':
     localserver=udpdnsserver(addr='0.0.0.0')
-    dnspod=httpdns(ednsip='211.140.188.188')
+    dnspod=httpdns(ednsip='224.24.24.45')
     ipprefix=iptool()
     while 1:
         Rcode, Qdata=localserver.input()
+        print('                 input success complete          ')
         if Rcode:
-            pass #localserver.output(Rcode, Rdata=Qdata)
+            #pass #localserver.output(Rcode, Rdata=Qdata)
+            print('                     Rcode!=0,so can\'t into httpdns\n\n')
         else:
             ANCOUNT, Rdata, tmp=dnspod.httprequest(Qdata)
             if ANCOUNT and ipprefix.prefixmatch(tmp[0]):
                 localserver.output(Rcode, Rdata, ANCOUNT)
             else:
-                pass #localserver.output(Rcode, Rdata=Qdata)
+                print('                 after httpdns, but no output\n\n')
+                #pass #localserver.output(Rcode, Rdata=Qdata)
