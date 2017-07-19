@@ -192,7 +192,7 @@ class iptool(object): #prefixmatch
         return {}.fromkeys(tmp)
 
 class udpdnsserver(object):
-    
+
     def __init__(self, addr='127.0.0.1', port=53):
         self.udpfd=socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.udpfd.bind((addr, port))
@@ -224,7 +224,7 @@ class udpdnsserver(object):
         else:
             qdata=data[12:i+16]
         return Rcode, qdata
-    
+
     def output(self, Rcode, Rdata, ANCOUNT=0):
         if Rcode:
             self.flages=self.flages|Rcode
@@ -235,8 +235,8 @@ class udpdnsserver(object):
         self.udpfd.sendto(Rdata, self.addr)
 
 if __name__ == '__main__':
-    localserver=udpdnsserver(addr='0.0.0.0')
-    dnspod=httpdns(ednsip='211.140.188.188')
+    localserver=udpdnsserver(addr='127.0.0.1')
+    dnspod=httpdns(ednsip='1.1.1.1')
     ipprefix=iptool()
     while 1:
         Rcode, Qdata=localserver.input()
