@@ -1,5 +1,5 @@
 # dnspod-httpdns-proxy
-使用 dnspod httpdns 来防止劫持的一个小轮子，仅支持 A IN 标准查询  
+使用 dnspod httpdns 来防止劫持的一个小轮子，仅支持 A/AAAA IN 标准查询  
 支持提交本地IP来应对穿透造成的解析问题  
 提供应答过滤功能，httpdns应答的 __第一个__ IP不在所填的IP段内的话就无应答  
 ## 使用  
