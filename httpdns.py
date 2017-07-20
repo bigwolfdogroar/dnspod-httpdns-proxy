@@ -180,7 +180,6 @@ class httpdns(object):
         self.domain=self.labelsTOdomain(Qdata[:-4])
         try:
             Rdata_tmp=urllib.request.urlopen('http://119.29.29.29/d?dn=%s&ip=%s' % (self.domain,self.ednsip)).read().split(b';')
-            # 119.29.29.29, 119.28.28.28, 182.254.116.116, 182.254.118.118
         except OSError:
             print('httprequest error')
             return 0, Qdata, b''
@@ -205,13 +204,13 @@ class udpdnsserver(object):
 
     def input(self):
         data, self.addr=self.udpfd.recvfrom(1500)
-        self.flages=int(data[2:4].hex(), 16)
-        self.QID=data[0:2]
+        self.flages=int(data[2:4].hex(), 16)            #标志flage 256为标准查询
+        self.QID=data[0:2]                              #标识数 匹配请求响应包
         print('udpdnsserver:\naddr: ip:'+str(self.addr[0])+' port:'+str(self.addr[1])+'\ndata='+str(data)+'\nflag='+str(self.flages)+'\nQID='+str(self.QID))
         Rcode=0
-        if self.flages&0x7800:#0x7800=30720
+        if self.flages&0x7800:#0x7800=0111 1000 0000 0000
             Rcode=4
-        elif self.flages&0x8000 != 0:#0x8000=32768
+        elif self.flages&0x8000 != 0:#0x8000=1000 0000 0000 0000
             Rcode=1
         elif data[4:6] == b'\x00\x01':
             i=0
@@ -238,6 +237,7 @@ class udpdnsserver(object):
         Rcount=b''.join([b'\x00\x01', ANCOUNT.to_bytes(2, byteorder='big'), b'\x00\x00\x00\x00'])
         Rdata=b''.join([self.QID, self.flages.to_bytes(2, byteorder='big'), Rcount, Rdata])
         self.udpfd.sendto(Rdata, self.addr)
+        print('output')
         print(Rdata,self.addr)
         print('##################output success\n')
 
